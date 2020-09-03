@@ -1,0 +1,1 @@
+SUBDIRS = common/ master/ slave/

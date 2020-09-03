@@ -1,0 +1,109 @@
+.TH PSPM 1
+
+.SH NAME
+pspm \- Packet Synchronization Protocol Master
+
+.SH SYNOPSIS
+.B pspm
+[\fIOPTIONS\fR]
+
+.SH DESCRIPTION
+.B pspm
+implements the master role of the Packet Synchronization Protocol.
+
+.SH OPTIONS
+\fB General options\fR
+.RS
+
+.TP
+.BR \-h
+Displays the help message.
+
+.TP
+.BR \-l
+Sets the log file. If this option is set all program output will be
+recorded in the log file independently from the verbosity level specified
+with the '\-v' option.
+
+.TP
+.BR \-v \fInum\fR
+Sets the program output verbosity level as follow:
+.RS
+.IP \fB0\fP
+error
+.IP \fB1\fP
+warning
+.IP \fB2\fP
+information
+.IP \fB3\fP
+debug
+.IP
+.RE
+
+.RE
+
+\fB Destination options\fR
+.RS
+
+.BR \-h \fIaddr\fR
+Sets the PSP slave IP address (mandatory option).
+
+.BR \-b
+Enables broadcasting of timestamp packets (default: off).
+
+.BR \-p \fIport\fR
+Sets the PSP slave UDP port (default value: 4242).
+
+.RE
+
+\fB Timestamp transmission options\fR
+.RS
+
+.BR \-d \fInum\fR
+Sets the timestamp transmission period in ms (default value: 1000).
+
+.BR \-s \fInum\fR
+Sets the timestamp transmission stagger in ms (default value: 250). \fBnum\fR shall be lower than the timestamp transmission period.
+
+.BR \-n \fInum\fR
+Sets the number of timestamp packets to transmit before stopping (default value: infinite).
+
+.BR \-t \fInum\fR
+Sets the timestamp packets TOS field to \fBnum\fR in base 10 (default value: TOS field not set).
+
+.RE
+
+\fB Secure mode options\fR
+.RS
+
+.BR \-k \fIfilename\fR
+Sets the filename of the cryptographic key for secure protocol mode. The key shall be a 32 byte binary file. This option also
+enables the secure protocol mode.
+
+.BR \-o \fIfilename\fR
+Sets the filename of the nonce for secure protocol mode. If the file does not exist, it will be created.
+
+.RE
+
+.SH EXIT STATUS
+Zero if OK, non-zero if error encountered.
+
+.SH EXAMPLE
+Starting PSP master with 1 second period, 0.5 seconds stagger, expedited forwarding qos and PSP slave at 192.168.1.64 with port 5000:
+.RS
+\fBpspm -a192.168.1.64 -p5000 -d1000 -s500 -t46 \fR
+.RE
+Starting PSP master for broadcasting on the local network 192.168.1.x:
+.RS
+\fBpspm -a192.168.1.255 -b\fR
+.RE
+Starting PSP master in secure mode with  PSP slave at 192.168.1.64:
+.RS
+\fBpspm -a192.168.1.64 -kkey -ononce.txt\fR
+.RE
+
+.SH AUTHOR
+Written by Alpha Catharsis (\fBalpha.catharsis@gmail.com\fR).
+
+.SH REPORTING BUGS
+Please raise issues at \fBhttps://github.com/alpha-catharsis/psp/issues\fR.
