@@ -1,6 +1,6 @@
 # Initial tasks
 AC_PREREQ([2.69])
-AC_INIT([psp], [1.1.1], [alpha.catharsis@gmail.com])
+AC_INIT([psp], [1.1.2], [alpha.catharsis@gmail.com])
 AC_CONFIG_SRCDIR([src/master/main.c])
 AC_CONFIG_HEADERS([src/config.h])
 AM_INIT_AUTOMAKE([foreign])

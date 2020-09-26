@@ -72,7 +72,7 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
 			     OPTS_GROUP("action options", "cs"),
 			     OPTS_GROUP("calibration options", "d"),
 			     OPTS_GROUP("syncrhonization options", "awf"),
-			     OPTS_GROUP("syncrhonization options", "awf"),
+			     OPTS_GROUP("general options", "xnup"),
 			     OPTS_GROUP("secure protocol options", "k"),
 			     OPTS_GROUP("debugging options", "tr"),
 			     OPTS_GROUP("tweaking options", "oi"),
