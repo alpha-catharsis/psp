@@ -10,50 +10,54 @@
 #include "../common/timestamp.h"
 
 /* PSP Slave headers */
+#include "basic_stats.h"
+#include "least_squares.h"
 #include "options.h"
-#include "stats.h"
-#include "summ_stats.h"
+#include "perc_stats.h"
 
 /* slave state structure */
 struct slave_state
 {
-  /* action options */
-  int action;
-  int synch_algo;
-  int perc;
-  long drift_win;
-  long obs_win;
-  int simulate;
-  FILE *stats_file;
-
-  /* latency data */
-  struct stats lat_stats;
-  struct summ_stats lat_summ_stats;
-  long offset;
-  long sim_offset;
-
   /* slave socket and port */
   int socket_desc;
   in_port_t slave_port;
-
-  /* timestamp reception data */
-  long pkt_cnt;
-  ts_pkt_idx_t pkt_idx;
-  long drift;
-  size_t pkt_size;
-  uint8_t *pkt_buff;
-  struct timespec first_ts;
 
   /* secure protocol data */
   int secure;
   uint8_t key[32];
 
-  /* debugging files */
-  FILE *lat_file;
-  FILE *corr_file;
+  /* timestamp reception data */
+  long pkt_cnt;
+  ts_pkt_idx_t pkt_idx;
+  size_t pkt_size;
+  uint8_t *pkt_buff;
+  struct timespec first_ts;
+  double offset_corr;
+  double freq_corr;
+
+  /* action */
+  int action;
+  int simulate;
+  int debug;
+  
+  /* statistics */
+  struct basic_stats bs;
+  struct perc_stats ps;
+  struct least_squares ls;
+
+  /* dynamic data */
+  double first_ts_time;
+  
+  /* files */
+  FILE *out_file;
+  FILE *debug_lat_file;
+  FILE *debug_lat_cdf_file;
+  FILE *debug_freq_off_file;
+  FILE *debug_time_corr_file;
+  FILE *debug_freq_corr_file;
 };
 
-/* master data structure */
+/* slave data structure */
 struct slave_data
 {
   struct options opts;

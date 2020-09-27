@@ -11,16 +11,15 @@
 #include "../common/output.h"
 
 /* PSP Slave headers */
+#include "calibr.h"
 #include "options.h"
+#include "precalibr.h"
 #include "state.h"
+#include "ts_handler.h"
 
 /* functions forward declarations */
 static void mngd_main(void *);
-static void receive_timestamp(struct slave_state *);
-static void handle_timestamp(struct slave_state *, struct timespec *,
-			     ts_pkt_idx_t, time_t, long);
-static void print_lat_data(struct slave_state *, double);
-static void synchronize(struct slave_state *);
+static void receive_timestamp(struct slave_state *, ts_handler);
 
 /* main function */
 int main(int argc, char **argv)
@@ -42,11 +41,22 @@ static void mngd_main(void *ptr)
   apply_general_options(&opts_ptr->gen_opts);
   print_selected_options(opts_ptr);
   init_state_from_options(state_ptr, opts_ptr);
-  receive_timestamp(state_ptr);
+  switch(state_ptr->action)
+  {
+  case action_precalibr:
+    receive_timestamp(state_ptr, precalibr_handle_ts);
+    break;
+  case action_calibr:
+    receive_timestamp(state_ptr, calibr_handle_ts);
+    break;
+  case action_synch:
+    /* perform_synch(state_ptr); */
+    break;
+  }
 }
 
-/* receive timestamp function */
-static void receive_timestamp(struct slave_state *state_ptr)
+static void receive_timestamp(struct slave_state *state_ptr,
+			      ts_handler handle_timestamp)
 {
   struct timespec ts;
   ts_pkt_idx_t idx;
@@ -76,7 +86,42 @@ static void receive_timestamp(struct slave_state *state_ptr)
 			&sec, &nsec, state_ptr->key)){
 	  output(warn_lvl, "discarded packet due to hmac mismatch");
 	}else if(idx > state_ptr->pkt_idx){
-	  handle_timestamp(state_ptr, &ts, idx, sec, nsec);
+	  double delta;
+	  double time;
+
+	  if(state_ptr->first_ts.tv_sec == 0){
+	    state_ptr->first_ts.tv_sec = ts.tv_sec;
+	    state_ptr->first_ts.tv_nsec = ts.tv_nsec;
+	  }
+
+	  state_ptr->pkt_idx = idx;
+	  output(debg_lvl, "idx %09lu secs: %09lu nsecs: %09lu", idx,
+		 sec, nsec);
+
+	  time = (double)ts.tv_sec + ((double)ts.tv_nsec) * 1e-9;
+	  delta = ((double) (ts.tv_sec - sec)) + ((double) (ts.tv_nsec - nsec)) * 1e-9;
+	  delta += state_ptr->offset_corr;
+	  delta -= ((double) (ts.tv_sec - state_ptr->first_ts.tv_sec) +
+		    (double) (ts.tv_nsec - state_ptr->first_ts.tv_nsec) * 1e-9) *
+	    state_ptr->freq_corr;
+
+	  add_basic_stats_sample(&state_ptr->bs, delta);
+	  output(debg_lvl, "delta: %.6f", delta);
+	  print_basic_stats(&state_ptr->bs, debg_lvl);
+	  if(state_ptr->debug){
+	    if(fprintf(state_ptr->debug_lat_file, "%.9f %.9f\n", time, delta) < 0){
+	      output(erro_lvl, "cannot write latency sample to file");
+	    }
+	  }
+
+	  handle_timestamp(state_ptr, time, delta);
+
+          if(state_ptr->pkt_cnt >= 0){
+	    state_ptr->pkt_cnt--;
+	  }
+	  if(state_ptr->pkt_cnt == 0){
+	    clean_exit();
+	  }
 	}else{
 	  output(warn_lvl, "discarded packet due to idx %lu <= %lu",
 		 idx, state_ptr->pkt_idx);
@@ -88,107 +133,45 @@ static void receive_timestamp(struct slave_state *state_ptr)
   }
 }
 
-void handle_timestamp(struct slave_state *state_ptr, struct timespec *ts,
-		      ts_pkt_idx_t idx, time_t sec, long nsec)
-{
-  double delta;
-  double time;
 
-  state_ptr->pkt_idx = idx;
-  output(debg_lvl, "idx %09lu secs: %09lu nsecs: %09lu", idx,
-	 sec, nsec);
+/* void synchronize(struct slave_state *state_ptr) */
+/* { */
+/*   (void) state_ptr; */
 
-  time = (double)ts->tv_sec + ((double)ts->tv_nsec) * 1e-9;
-  delta = ((double) (ts->tv_sec - sec)) + ((double) (ts->tv_nsec - nsec)) * 1e-9 +
-    (double)state_ptr->offset * 1e-6 + (double)state_ptr->sim_offset * 1e-9;
-
-  if(state_ptr->first_ts.tv_nsec == -1){
-    state_ptr->first_ts.tv_sec = ts->tv_sec;
-    state_ptr->first_ts.tv_nsec = ts->tv_nsec;
-  }else{
-    delta -= ((double) (ts->tv_sec - state_ptr->first_ts.tv_sec) +
-	      (double) (ts->tv_nsec - state_ptr->first_ts.tv_nsec) * 1e-9) *
-             ((double) state_ptr->drift * 1e-9);
-  }
-  
-  add_sample(&state_ptr->lat_stats, time, delta);
-  print_lat_data(state_ptr, delta);
-
-  if(state_ptr->lat_file && (fprintf(state_ptr->lat_file, "%.15f\n", delta) < 0)){
-    output(erro_lvl, "cannot write latency sample to file");
-  }
-
-  if((state_ptr->action == action_synch) &&
-     (stats_count(&state_ptr->lat_stats) == state_ptr->obs_win)){
-    synchronize(state_ptr);
-  }
-
-  if(state_ptr->pkt_cnt >= 0){
-    state_ptr->pkt_cnt--;
-  }
-  if(state_ptr->pkt_cnt == 0){
-    output(info_lvl, "finished receiving timestamps. Exiting...");
-    clean_exit();
-  }
-}
-
-void print_lat_data(struct slave_state *state_ptr, double delta)
-{
-  output(debg_lvl, "delta: %.6f | min: %.6f | max: %.6f", delta,
-	 stats_min(&state_ptr->lat_stats), stats_max(&state_ptr->lat_stats));
-  output(debg_lvl, "mean: %.6f | stddev: %.6f | mean stddev: %.6f",
-	 stats_mean(&state_ptr->lat_stats), 
-	 stats_stddev(&state_ptr->lat_stats), 
-	 stats_mean_stddev(&state_ptr->lat_stats));
-  if(state_ptr->perc){
-    output(debg_lvl, "p10: %.6f | p25: %.6f | p50: %.6f | p99: %.6f",
-	   stats_percentile(&state_ptr->lat_stats, 0.10),
-	   stats_percentile(&state_ptr->lat_stats, 0.25),
-	   stats_percentile(&state_ptr->lat_stats, 0.50),
-	   stats_percentile(&state_ptr->lat_stats, 0.99));
-  }
-  if(state_ptr->drift_win){
-    output(debg_lvl, "total drift: %.9f | drift: %.9f", stats_cumul_drift(&state_ptr->lat_stats),
-	   stats_drift(&state_ptr->lat_stats));
-  }
-}
-
-void synchronize(struct slave_state *state_ptr)
-{
-  struct timespec ts;
-  double corr = 0;
-  switch(state_ptr->synch_algo){
-  case algo_mean:
-    corr = state_ptr->lat_summ_stats.mean - stats_mean(&state_ptr->lat_stats);
-    break;
-  case algo_p10:
-    corr = state_ptr->lat_summ_stats.perc[0] - stats_percentile(&state_ptr->lat_stats, 0.10);
-    break;
-  case algo_p25:
-    corr = state_ptr->lat_summ_stats.perc[1] - stats_percentile(&state_ptr->lat_stats, 0.25);
-    break;
-  case algo_median:
-    corr = state_ptr->lat_summ_stats.perc[2] - stats_percentile(&state_ptr->lat_stats, 0.50);
-    break;
-  }
-  output(info_lvl, "applying correction: %.6f", corr);
-  if(state_ptr->corr_file && (fprintf(state_ptr->corr_file, "%.15f\n", corr) < 0)){
-    output(erro_lvl, "cannot write clock correction to file");
-  }
-  if(state_ptr->simulate){
-    state_ptr->sim_offset += (long)(corr * 1e9);
-  }else{
-    if(clock_gettime(CLOCK_REALTIME, &ts) == -1){
-      output(erro_lvl, "failure reading realtime clock");
-    }else{
-      double time = (double) ts.tv_sec + (double) ts.tv_nsec * 1e-9;
-      time += corr;
-      ts.tv_sec  = (time_t) floor(time);
-      ts.tv_nsec = (long) ((time - floor(time)) * 1e9);
-      if(clock_settime(CLOCK_REALTIME, &ts) == -1){
-	output(erro_lvl, "failure setting realtime clock");
-      }
-    }
-  }
-  reset_stats(&state_ptr->lat_stats);
-}
+  /* struct timespec ts; */
+  /* double corr = 0; */
+  /* switch(state_ptr->synch_algo){ */
+  /* case algo_mean: */
+  /*   corr = state_ptr->lat_summ_stats.mean - stats_mean(&state_ptr->lat_stats); */
+  /*   break; */
+  /* case algo_p10: */
+  /*   corr = state_ptr->lat_summ_stats.perc[0] - stats_percentile(&state_ptr->lat_stats, 0.10); */
+  /*   break; */
+  /* case algo_p25: */
+  /*   corr = state_ptr->lat_summ_stats.perc[1] - stats_percentile(&state_ptr->lat_stats, 0.25); */
+  /*   break; */
+  /* case algo_median: */
+  /*   corr = state_ptr->lat_summ_stats.perc[2] - stats_percentile(&state_ptr->lat_stats, 0.50); */
+  /*   break; */
+  /* } */
+  /* output(info_lvl, "applying correction: %.6f", corr); */
+  /* if(state_ptr->corr_file && (fprintf(state_ptr->corr_file, "%.15f\n", corr) < 0)){ */
+  /*   output(erro_lvl, "cannot write clock correction to file"); */
+  /* } */
+  /* if(state_ptr->simulate){ */
+  /*   state_ptr->sim_offset += (long)(corr * 1e9); */
+  /* }else{ */
+  /*   if(clock_gettime(CLOCK_REALTIME, &ts) == -1){ */
+  /*     output(erro_lvl, "failure reading realtime clock"); */
+  /*   }else{ */
+  /*     double time = (double) ts.tv_sec + (double) ts.tv_nsec * 1e-9; */
+  /*     time += corr; */
+  /*     ts.tv_sec  = (time_t) floor(time); */
+  /*     ts.tv_nsec = (long) ((time - floor(time)) * 1e9); */
+  /*     if(clock_settime(CLOCK_REALTIME, &ts) == -1){ */
+  /* 	output(erro_lvl, "failure setting realtime clock"); */
+  /*     } */
+  /*   } */
+  /* } */
+  /* reset_stats(&state_ptr->lat_stats); */
+/* } */
