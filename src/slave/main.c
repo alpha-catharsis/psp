@@ -15,6 +15,7 @@
 #include "options.h"
 #include "precalibr.h"
 #include "state.h"
+#include "synch.h"
 #include "ts_handler.h"
 
 /* functions forward declarations */
@@ -50,7 +51,7 @@ static void mngd_main(void *ptr)
     receive_timestamp(state_ptr, calibr_handle_ts);
     break;
   case action_synch:
-    /* perform_synch(state_ptr); */
+    receive_timestamp(state_ptr, synch_handle_ts);
     break;
   }
 }
@@ -86,35 +87,29 @@ static void receive_timestamp(struct slave_state *state_ptr,
 			&sec, &nsec, state_ptr->key)){
 	  output(warn_lvl, "discarded packet due to hmac mismatch");
 	}else if(idx > state_ptr->pkt_idx){
-	  double delta;
-	  double time;
-
-	  if(state_ptr->first_ts.tv_sec == 0){
-	    state_ptr->first_ts.tv_sec = ts.tv_sec;
-	    state_ptr->first_ts.tv_nsec = ts.tv_nsec;
-	  }
-
 	  state_ptr->pkt_idx = idx;
 	  output(debg_lvl, "idx %09lu secs: %09lu nsecs: %09lu", idx,
 		 sec, nsec);
 
-	  time = (double)ts.tv_sec + ((double)ts.tv_nsec) * 1e-9;
-	  delta = ((double) (ts.tv_sec - sec)) + ((double) (ts.tv_nsec - nsec)) * 1e-9;
-	  delta += state_ptr->offset_corr;
-	  delta -= ((double) (ts.tv_sec - state_ptr->first_ts.tv_sec) +
-		    (double) (ts.tv_nsec - state_ptr->first_ts.tv_nsec) * 1e-9) *
-	    state_ptr->freq_corr;
+	  double clk_time = (double)ts.tv_sec + ((double)ts.tv_nsec) * 1e-9;
+	  double ts_time = (double)sec + ((double)nsec) * 1e-9;
+	  double time_delta = clk_time - ts_time;
 
-	  add_basic_stats_sample(&state_ptr->bs, delta);
-	  output(debg_lvl, "delta: %.6f", delta);
-	  print_basic_stats(&state_ptr->bs, debg_lvl);
-	  if(state_ptr->debug){
-	    if(fprintf(state_ptr->debug_lat_file, "%.9f %.9f\n", time, delta) < 0){
-	      output(erro_lvl, "cannot write latency sample to file");
+	  if(state_ptr->debug_timestamp_file){
+	    if(fprintf(state_ptr->debug_timestamp_file, "%lu %.9f %.9f %.9f\n",
+		       basic_stats_count(&state_ptr->bs),
+		       clk_time,
+		       ts_time,
+		       time_delta) < 0){
+	      output(erro_lvl, "cannot write timestamp information to file");
 	    }
 	  }
 
-	  handle_timestamp(state_ptr, time, delta);
+	  output(debg_lvl, "time delta: %.9f", time_delta);
+	  add_basic_stats_sample(&state_ptr->bs, time_delta);
+	  print_basic_stats(&state_ptr->bs, debg_lvl);
+
+	  handle_timestamp(state_ptr, clk_time, time_delta);
 
           if(state_ptr->pkt_cnt >= 0){
 	    state_ptr->pkt_cnt--;
@@ -132,46 +127,3 @@ static void receive_timestamp(struct slave_state *state_ptr,
     }
   }
 }
-
-
-/* void synchronize(struct slave_state *state_ptr) */
-/* { */
-/*   (void) state_ptr; */
-
-  /* struct timespec ts; */
-  /* double corr = 0; */
-  /* switch(state_ptr->synch_algo){ */
-  /* case algo_mean: */
-  /*   corr = state_ptr->lat_summ_stats.mean - stats_mean(&state_ptr->lat_stats); */
-  /*   break; */
-  /* case algo_p10: */
-  /*   corr = state_ptr->lat_summ_stats.perc[0] - stats_percentile(&state_ptr->lat_stats, 0.10); */
-  /*   break; */
-  /* case algo_p25: */
-  /*   corr = state_ptr->lat_summ_stats.perc[1] - stats_percentile(&state_ptr->lat_stats, 0.25); */
-  /*   break; */
-  /* case algo_median: */
-  /*   corr = state_ptr->lat_summ_stats.perc[2] - stats_percentile(&state_ptr->lat_stats, 0.50); */
-  /*   break; */
-  /* } */
-  /* output(info_lvl, "applying correction: %.6f", corr); */
-  /* if(state_ptr->corr_file && (fprintf(state_ptr->corr_file, "%.15f\n", corr) < 0)){ */
-  /*   output(erro_lvl, "cannot write clock correction to file"); */
-  /* } */
-  /* if(state_ptr->simulate){ */
-  /*   state_ptr->sim_offset += (long)(corr * 1e9); */
-  /* }else{ */
-  /*   if(clock_gettime(CLOCK_REALTIME, &ts) == -1){ */
-  /*     output(erro_lvl, "failure reading realtime clock"); */
-  /*   }else{ */
-  /*     double time = (double) ts.tv_sec + (double) ts.tv_nsec * 1e-9; */
-  /*     time += corr; */
-  /*     ts.tv_sec  = (time_t) floor(time); */
-  /*     ts.tv_nsec = (long) ((time - floor(time)) * 1e9); */
-  /*     if(clock_settime(CLOCK_REALTIME, &ts) == -1){ */
-  /* 	output(erro_lvl, "failure setting realtime clock"); */
-  /*     } */
-  /*   } */
-  /* } */
-  /* reset_stats(&state_ptr->lat_stats); */
-/* } */

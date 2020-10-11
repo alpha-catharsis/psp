@@ -17,17 +17,19 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
   init_general_options(&opts_ptr->gen_opts);
   opts_ptr->slave_port = htons(4242);
   opts_ptr->max_pkt_cnt = -1;
-  opts_ptr->obs_win = 100;
-  opts_ptr->simulate = 0;
+  opts_ptr->obs_win = 120;
+  opts_ptr->time_step_thr = 10000;
+  opts_ptr->qs_rounds = 0;
   opts_ptr->key_filename = NULL;
   opts_ptr->debug = 0;
-  opts_ptr->offset = 0;
 
   const int action_precalibr_val = action_precalibr;
   const int action_calibr_val = action_calibr;
   const int action_synch_val = action_synch;
   const struct num_bounds win_bounds = {1, 1000000};
   const struct num_bounds pkt_cnt_bounds = {1, LONG_MAX};
+  const struct num_bounds time_step_thr_bounds = {1, 3600000000L};
+  const struct num_bounds qs_rounds_bounds = {1, 10};
 
   struct option_descriptor optreg[] =
     { /* general options */
@@ -45,7 +47,10 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
      BND_LONG_OPT('w', "<integer>, specifies the observation window in samples", &opts_ptr->obs_win, &win_bounds, "", ""),
 
      /* synchronization options */
-     FLAG_OPT('f', "simulate synchronization (does not change the machine clock)", &opts_ptr->simulate, "s", ""),
+     BND_LONG_OPT('t', "<integer>, set the time correction step threshold in us",
+		  &opts_ptr->time_step_thr, &time_step_thr_bounds, "s", ""),
+     BND_LONG_OPT('q', "<integer>, enables quickstart and specifies the quickstart rounds",
+		  &opts_ptr->qs_rounds, &qs_rounds_bounds, "s", ""),
      
      /* secure protocol options */
      STR_OPT('k', "<filename>, specifies the cryptographic key for timestamp authentication", &opts_ptr->key_filename, "", ""),
@@ -53,20 +58,16 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
      /* debugging options */
      FLAG_OPT('d', "enables the generation of debug files", &opts_ptr->debug, "", ""),
 
-     /* tweaking options */
-     LONG_OPT('o', "<integer>, specifies an offset to apply to latency computation in us", &opts_ptr->offset, "", ""), 
-
      /* end of options */
      END_OPTS
     };
 
   struct opt_group optg[] = {GEN_OPTS_GROUP,
 			     OPTS_GROUP("action options", "acs"),
-			     OPTS_GROUP("general options", "pnw"),
-			     OPTS_GROUP("synchronization options", "f"),
+			     OPTS_GROUP("common options", "pnw"),
+			     OPTS_GROUP("synchronization options", "tq"),
 			     OPTS_GROUP("secure protocol options", "k"),
 			     OPTS_GROUP("debugging options", "d"),
-			     OPTS_GROUP("tweaking options", "o"),
 			     END_OPTS_GROUP};
 
   if(parse_opts(optreg, argc, argv) &&
@@ -98,31 +99,37 @@ void print_selected_options(const struct options *opts_ptr)
   output(info_lvl, "Packet Synchronization Slave started...");
   output(info_lvl, "Parameters:");
   if(opts_ptr->action == action_precalibr){
-    output(info_lvl, "  action               = pre-calibrate");
+    output(info_lvl, "  action                 = pre-calibrate");
   }else if(opts_ptr->action == action_calibr){
-    output(info_lvl, "  action               = calibrate");
+    output(info_lvl, "  action                 = calibrate");
   }else{
-    if(opts_ptr->simulate){
-      output(info_lvl, "  action               = synchronize (simulated)");
+    output(info_lvl, "  action                 = synchronize");
+    output(info_lvl, "  time step threshold    = %ld", opts_ptr->time_step_thr);
+    if(opts_ptr->qs_rounds){
+      if(opts_ptr->qs_rounds == 1){
+	output(info_lvl, "  quickstart             = 1 round");
+      }else{
+	output(info_lvl, "  quickstart             = %ld rounds", opts_ptr->qs_rounds);
+      }
     }else{
-      output(info_lvl, "  action               = synchronize");
+	output(info_lvl, "  quickstart             = disabled");
     }
   }
-  output(info_lvl, "  slave UDP port       = %hu", ntohs(opts_ptr->slave_port));
+  output(info_lvl, "  slave UDP port         = %hu", ntohs(opts_ptr->slave_port));
   if(opts_ptr->max_pkt_cnt > 0){
-    output(info_lvl, "  max packet count     = %ld", opts_ptr->max_pkt_cnt);
+    output(info_lvl, "  max packet count       = %ld", opts_ptr->max_pkt_cnt);
   }else{
-    output(info_lvl,"  max packet count     = infinite");
+    output(info_lvl,"  max packet count       = infinite");
   }
-  output(info_lvl, "  observation window   = %ld", opts_ptr->obs_win);
+  output(info_lvl, "  observation window     = %ld", opts_ptr->obs_win);
   if(opts_ptr->key_filename){
-    output(info_lvl,"  key filename         = %s", opts_ptr->key_filename);
+    output(info_lvl,"  key filename           = %s", opts_ptr->key_filename);
   }else{
-    output(info_lvl,"  key filename         = not set");
+    output(info_lvl,"  key filename           = not set");
   }
   if(opts_ptr->debug){
-    output(info_lvl,"  debug files          = enabled");
+    output(info_lvl,"  debug files            = enabled");
   }else{
-    output(info_lvl,"  debug files          = disabled");
+    output(info_lvl,"  debug files            = disabled");
   }
 }

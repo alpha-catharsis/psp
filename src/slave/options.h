@@ -32,16 +32,14 @@ struct options
   long obs_win;
 
   /* synchronization options */
-  int simulate;
+  long time_step_thr;
+  long qs_rounds;
 
   /* secure protocol options */
   const char *key_filename;
 
   /* debugging options */
   int debug;
-
-  /* tweaking options */
-  long offset;
 };
 
 /* options parsing functions */

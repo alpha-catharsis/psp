@@ -18,10 +18,12 @@ void init_calibr(struct slave_state *state_ptr)
   if(!in_file){
       output(warn_lvl, "cannot open pre-calibration output file. Assuming zero frequency offset.");
   }else{
-    if(fscanf(in_file, "%lf", &state_ptr->freq_corr) != 1){
+    double freq_off;
+    if(fscanf(in_file, "%lf", &freq_off) != 1){
       fclose(in_file);
-      output(erro_lvl, "cannot read frequency offset in  pre-calibration output file.");
+      output(erro_lvl, "cannot read frequency offset in pre-calibration output file.");
     }
+    state_ptr->clk_freq_ofs = -freq_off;
     fclose(in_file);
   }
 
@@ -30,13 +32,13 @@ void init_calibr(struct slave_state *state_ptr)
     output(erro_lvl, "cannot open calibration output file");
   }
   if(state_ptr->debug){
-    state_ptr->debug_lat_file = fopen("calibr_latency.txt", "w");
-    if(!state_ptr->debug_lat_file){
-      output(erro_lvl, "cannot open calibration latency file");
+    state_ptr->debug_timestamp_file = fopen("calibr_timestamp.txt", "w");
+    if(!state_ptr->debug_timestamp_file){
+      output(erro_lvl, "cannot open calibration timestamp file");
     }
-    state_ptr->debug_lat_cdf_file = fopen("calibr_latency_cdf.txt", "w");
-    if(!state_ptr->debug_lat_cdf_file){
-      output(erro_lvl, "cannot open calibration latency CDF file");
+    state_ptr->debug_time_delta_cdf_file = fopen("calibr_time_delta_cdf.txt", "w");
+    if(!state_ptr->debug_time_delta_cdf_file){
+      output(erro_lvl, "cannot open calibration time delta CDF file");
     }
   }
 }
@@ -47,24 +49,26 @@ void fini_calibr(struct slave_state *state_ptr)
     output(erro_lvl, "cannot write calibration results to file");
   }
   if(state_ptr->debug){
-    double prev_x = 0.;
     for(int i = 0; i <= 100; i++){
       double y = i * 0.01;
       double x = perc_stats_perc(&state_ptr->ps, y);
-      if(fprintf(state_ptr->debug_lat_cdf_file, "%.9f %.9f\n%.9f %.9f\n", prev_x, y, x, y) < 0) {
-	output(erro_lvl, "cannot write to latency histogram file");
+      if(fprintf(state_ptr->debug_time_delta_cdf_file, "%.9f %.9f\n", x, y) < 0) {
+	output(erro_lvl, "cannot write to time offset CDF file");
       }
-      prev_x = x;
     }
   }
 }
 
 /* timestamp handling */
-void calibr_handle_ts(struct slave_state *state_ptr, double time, double delta)
+void calibr_handle_ts(struct slave_state *state_ptr, double clk_time, double time_delta)
 {
-  (void) time;
-  add_perc_stats_sample(&state_ptr->ps, delta);
-    output(info_lvl, "median latency: %.9f", perc_stats_perc(&state_ptr->ps, 0.5));
+  if(state_ptr->first_clk_time < 0.){
+    state_ptr->first_clk_time = clk_time;
+  }
+  double corrected_delta = time_delta + state_ptr->clk_freq_ofs *
+    (clk_time - state_ptr->first_clk_time);
+  add_perc_stats_sample(&state_ptr->ps, corrected_delta);
+  output(info_lvl, "median time delta: %.9f", perc_stats_perc(&state_ptr->ps, 0.5));
   if(perc_stats_count(&state_ptr->ps) == perc_stats_max_samples(&state_ptr->ps)){
     clean_exit();
   }

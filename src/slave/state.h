@@ -31,30 +31,34 @@ struct slave_state
   ts_pkt_idx_t pkt_idx;
   size_t pkt_size;
   uint8_t *pkt_buff;
-  struct timespec first_ts;
-  double offset_corr;
-  double freq_corr;
+  double clk_freq_ofs;
 
   /* action */
   int action;
-  int simulate;
   int debug;
   
   /* statistics */
   struct basic_stats bs;
   struct perc_stats ps;
   struct least_squares ls;
+  double median_time_off;
 
   /* dynamic data */
-  double first_ts_time;
-  
+  double obs_win_start_time;
+  double first_clk_time;
+  double first_delta;
+  double time_step_thr;
+  long qs_rounds;
+  double time_cumul_corr;
+  long obs_win;
+
   /* files */
   FILE *out_file;
-  FILE *debug_lat_file;
-  FILE *debug_lat_cdf_file;
-  FILE *debug_freq_off_file;
+  FILE *debug_timestamp_file;
+  FILE *debug_time_delta_cdf_file;
+  FILE *debug_freq_delta_file;
   FILE *debug_time_corr_file;
-  FILE *debug_freq_corr_file;
+  FILE *debug_time_cumul_corr_file;
 };
 
 /* slave data structure */

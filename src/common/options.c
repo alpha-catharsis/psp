@@ -1,3 +1,6 @@
+/* Configuration header */
+#include "../config.h"
+
 /* C standard library headers */
 #include <limits.h>
 #include <stdio.h>

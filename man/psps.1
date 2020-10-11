@@ -45,63 +45,42 @@ debug
 \fB Action options\fR
 .RS
 
-.BR \-c
-Performs calibration and writes channel latency statistics in the file specified with the '-u' option
+.BR \-a
+Performs pre-calibration and writes estimated time drift in file 'precalibr_results.txt'
 
 .BR \-c
-Performs synchronization reading channel latency statistics in the file specified with the '-u' option
+Performs calibration and writes estimated median channel latency in file 'calibr_results.txt'
+
+.BR \-s
+Performs synchronization changing and adjustig system clock
 
 .RE
 
-\fB Options valid for calibration only\fR
+\fB Options valid for all actions\fR
 .RS
-
-.BR \-d \fInum\fR
-Sets the lenght in samples of the drift evaluation window and enables drift evaluation during calibration.
-
-.RE
-
-\fB Options valid for both synchronization and calibration\fR
-.RS
-
-.BR \-n \fInum\fR
-Sets the number of timestamp packets to reveive before stopping (default value: infinite). This option is mandatory if synchronization.
-action is selected.
-
-.BR \-u \fIfilename\fR
-Sets the filename of the statistics file. This file is written during calibration and read during synchronization (mandatory option).
 
 .BR \-p \fIport\fR
-Sets the PSP slave UDP port (default value: 4242).
+Sets the PSP slave UDP port (default value: 4242)
 
-.BR \-c
-Avoids the computation of latency percentiles during calibration and synchronization, saving memory and CPU load. If this option
-is specified, the only valid synchronization algorithm is 'mean'.
+.BR \-n \fInum\fR
+Sets the number of timestamp packets to reveive before stopping (default value: infinite)
+
+.BR \-w \fInum\fR
+Sets the size of the observation window in samples (default value: 120). During pre-calibration the observation window is used to filter
+out channel latency variance. During calibration and synchronization, the observation window is used to estimate the median channel latency.
 
 .RE
 
 \fB Options valid for synchronization only\fR
 .RS
 
-.BR \-v \fInum\fR
-Sets the syncronization algorithm as follow:
-.RS
-.IP \fB0\fP
-mean
-.IP \fB1\fP
-10th percentile
-.IP \fB2\fP
-25th percentile
-.IP \fB3\fP
-median (default algorithm)
-.IP
-.RE
+.BR \-t \fInum\fR
+Specifies the threshold, in microseconds, for performing a step correction (default value: 10000). If the estimated error is below this
+threshold, the system clock is adjusted acting on its frequency, maintaining a monotonic behavior. If the estimated error is above this
+threshold then the system clock error is corrected suddently (this might make the system clock go back in time).
 
-.BR \-w \fInum\fR
-Sets the size of observation window in number of received timestamp (default value: 100)
-
-.BR \-f
-Simulates synchronization (avoids adjustments of machine clock)
+.BR \-q \fInum\fR
+Specifies the number of quickstart rounds (default value: quickstart disabled). For each round the size of the observatio window is doubled.
 
 .RE
 
@@ -117,22 +96,8 @@ enables the secure protocol mode.
 \fB Debugging options\fR
 .RS
 
-.BR \-t \fIfilename\fR
-If set, the measured latency samples are written in text format to \fBfilename\fR.
-
-.BR \-r \fIfilename\fR
-If set, the clock corrections are written in text format to \fBfilename\fR.
-
-.RE
-
-\fB Tweaking options\fR
-.RS
-
-.BR \-o \fInum\fR
-Set a static offset which is applied to latency measurement.
-
-.BR \-i \fInum\fR
-Compensate the clocks drift by \fBnum\fR ppb for calibration.
+.BR \-d \fIfilename\fR
+Enables the generation of debug files with useful information.
 
 .RE
 
@@ -140,13 +105,17 @@ Compensate the clocks drift by \fBnum\fR ppb for calibration.
 Zero if OK, non-zero if error encountered.
 
 .SH EXAMPLE
+Starting PSP slave for pre-calibration:
+.RS
+\fBpspm -a -w 240\fR
+.RE
 Starting PSP slave for calibration:
 .RS
-\fBpspm -c -ustats.txt -n10000 -d100\fR
+\fBpspm -c -w 2400\fR
 .RE
 Starting PSP slave for synchronization:
 .RS
-\fBpspm -s -ustats.txt\fR
+\fBpspm -s -w 120 -q 2\fR
 .RE
 
 .SH AUTHOR

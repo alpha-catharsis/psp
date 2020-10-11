@@ -1,8 +1,9 @@
 # Initial tasks
 AC_PREREQ([2.69])
-AC_INIT([psp], [1.1.2], [alpha.catharsis@gmail.com])
+AC_INIT([psp], [2.0.0], [alpha.catharsis@gmail.com])
 AC_CONFIG_SRCDIR([src/master/main.c])
 AC_CONFIG_HEADERS([src/config.h])
+AC_GNU_SOURCE
 AM_INIT_AUTOMAKE([foreign])
 LT_INIT
 
@@ -25,7 +26,7 @@ AC_CHECK_LIB([rt], [clock_gettime])
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([arpa/inet.h float.h limits.h memory.h netinet/in.h stddef.h stdint.h stdlib.h string.h sys/socket.h unistd.h])
+AC_CHECK_HEADERS([arpa/inet.h float.h limits.h memory.h netinet/in.h stddef.h stdint.h stdlib.h string.h sys/socket.h sys/time.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_INT16_T
@@ -38,6 +39,9 @@ AC_TYPE_UINT8_T
 AC_FUNC_MALLOC
 AC_FUNC_STRTOD
 AC_CHECK_FUNCS([clock_gettime floor inet_ntoa memmove memset socket sqrt strerror strtol strtoul])
+
+# Defines
+AC_DEFINE([_POSIX_C_SOURCE], [200809L], [Define the POSIX version])
 
 # Final tasks
 AC_CONFIG_FILES([Makefile
