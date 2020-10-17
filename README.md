@@ -2,7 +2,7 @@
 
 ## Important Notice
 
-At the current stage this project can be considered as a proof-of-concept. It works but it is very basic and requires some manual tuning
+At the current stage this project has to be considered just a proof-of-concept. It works but it is very basic and requires some manual tuning
 in order to provide good performance. If you use this software please provide your feedback to
 [alpha.catharsis@gmail.com](mailto:alpha.catharsis@gmail.com).
 
@@ -22,17 +22,21 @@ standard IP protocols (i.e. NTP and PTP) is not viable. In particular PSP may be
 
 With PSP is it possible synchronize the clock of a computer, indentified as _slave_, to the clock of another computer, identified as _master_,
 through the uniderctional sending of IP packets from the master to the slave. To perform such synchronization, the slave needs to know the latency
-statistics of the IP communication channel. For this reason PSP is based on a two-step approach: _calibration_ step and _synchronization_ step.
+statistics of the IP communication channel. For this reason PSP is based on a three-step approach: _pre-calibration_, _calibration_ and _synchronization_
+steps.
+
+The pre-calibration step allows the slave to estimate the frequency offset between the master and the slave clocks. The knowledge of the frequency
+offset is necessary to correctly estimate the IP channel latency statistics during the calibration step.
 
 The calibration step allows the slave to estimate the IP channel latency statistics. In this step the master and slave must be synchronized to a
-common time through other means (e.g. GNSS or NTP). During calibration step the master periodically sends timestamp packets to the slave, which
+common time through other means (e.g. GNSS or NTP/PTP). During calibration step the master periodically sends timestamp packets to the slave, which
 measures the channel latency statistics.
 
 Once calibration has been performed, it is possible to disconnect the master and slave from the common time source and proceed with the
 synchronization through PSP protocol. During this step, the synchronization master periodically sends timestamp packets to the slave that,
 based on recorded channel latency statistics, corrects its clock.
 
-It is worth noting that the master always performs the same operation (i.e. timestamp packet transmission) during both calibration and
+It is worth noting that the master always performs the same operation (i.e. timestamp packet transmission) during pre-calibration, calibration and
 synchronization steps.
 
 The accuracy of PSP protocol strongly depends on the calibration error and on the stability of channel latency statistics over time. Calibration
@@ -40,16 +44,16 @@ error depends on the accuracy of the master/slave synchronization during calibra
 estimation of channel latency statistics. The stability of the channel latency statistics may vary significantly based on the network topology and
 media. Best stability is achieved on low-loaded LANs and Wifi networks, while on internet the stability is much less predictable.
 
-From a limited set of experiments it results that very good performance is achievable on wired LANs (order of tens of microseconds), and that decent
-performance is achievable through internet (milliseconds error).
+From a limited set of experiments it results that an accuracy of tens of microseconds is achievable on wired LANs, and that an accuracy of
+tens of milliseconds is achievable through internet.
 
 ## Installation
 
-PSP depends only on the availability of C standard library and POSIX realtime extension library. It is compatible with POSIX.1c and more recent
-systems. In order to install PSP the following commands shall be executed from a POSIX shell:
+PSP currently can only be installed on Linux and does not require additional dependencies. In order to install PSP the following commands shall be
+executed from the shell:
 ~~~~
-tar -xzvf psp-1.1.1.tar.gz
-cd psp-1.1.1
+tar -xzvf psp-2.0.0.tar.gz
+cd psp-2.0.0
 ./autogen.sh
 ./configure
 make
@@ -67,6 +71,14 @@ package `./configure --prefix=/usr`.
 
 ## Protocol description
 
+During pre-calibration:
+
+* Master periodically sends timestamp packets to the slave
+
+* Slave estimates the relative frequency offset between its clock and master's clock
+
+At the end of the pre-calibration step, the slaves save in the file 'precalibr\_results.txt' the estimated frequency offset.
+
 During calibration:
 
 * Master and slave are synchronized with good accuracy to a common time reference through other means
@@ -75,8 +87,7 @@ During calibration:
 
 * Slave measures the channel latency subtracting the received master timestamp from its local timestamp
 
-At the end of the calibration step, the slaves save in a local file the measured channel latency statistics in terms of mean value, 10th
-percentile, 25th percentile and median.
+At the end of the pre-calibration step, the slaves save in the file 'precalibr\_results.txt' the estimated IP channel median latency.
 
 During synchronization:
 
@@ -89,77 +100,89 @@ During synchronization:
 * The slave computes the statistics of the timestamp difference on an observation window of fixed size
 
 * At the end of each observation window, the slave corrects its clock by the delta between the timestamp difference statistics and the
-  recorded channel latency statistics. Any of the recorded statistics (mean, 10th percentile, 25th percentile or median) can be used for
-  this purpose.
+  estimated IP channel median latency.
 
 It is worth noting the master timestamp sending is not exactly periodic, it is quasi-periodic. The timestamp packet transmission is
 staggered by a random amount of time in order avoid alignment with potential periodic channel behaviors.
 
-At the moment the slave clock is adjusted abruptly at the end of each observation window, fully compensating the estimated synchronization
-error. This may result in the slave clock going back in time. In the future, the adjustment of slave clock frequency might be considered
-to guarantee a monotonic slave clock time.
+During sychronization, if the estimated error is below the 'time correction step threshold', the slave clock is adjusted monotonically
+acting on its frequency. If the estimated error is above such threshold, then the slave clock time is changed abruptly and may also
+go back in time.
 
 ## Short guide
 
 The following sections reports a small guide on how to use the two programs provided with this project, i.e.  `pspm` (PSP Master) and
 `psps` (PSP Slave). For a detailed description of programs options, please refer to the man pages.
 
+### Pre-Calibration
+
+PSP pre-calibration can be performed using the following commands:
+
+* on the slave: `psps -a -w 480 -d`
+
+* on the master: `pspm -a <slave IP address> -d 250 -s 100 -v 3`
+
+With such parameters:
+
+* the synchronization master sends 4 timestamp per second on average.
+
+* the synchronization slave estimates the relative frequency offset based on the median of channel latency computed over observation
+  windows of 2 minutes. The first frequency offset estimation is produced after 4 minutes and then it is refreshed every 2 minutes.
+
+* the synchronization slave produces two debug files: 'precalibr\_timestamp.txt' and 'precalibr\_freq\_delta.txt'. The former
+  reports, for each received timestamp packet, the timestamps count, the slave clock time, the timestamp time and the difference
+  between the two. The latter file reports the frequency offset estimated after each observation window (excluding the very
+  first one).
+
+Note: pre-calibration can be skipped if the master and slave clocks are synchronized continuously or if both clocks are known to
+have a very low frequency offset.
+
 ### Calibration
 
 In order to perform the calibration step, master and slaves machines must be synchronized to the same time reference through other
 means. This can be achieved with GNSS, NTP or PTP protocols.
 
-It is important to distinguish two cases:
-
-1. the master and slaves are continuously synchronized to the same time reference. In this case the relative drift between master
-   and slaves clocks can be probably considered as negligible
-
-2. Master and slave clocks synchronization to the same time reference is performed only once before performing the calibration step.
-   In this case the relative drift between master and slave clocks can be relevant or not depending on the clock quality and on
-   the target synchronization error that must be achieved
-
 Once the master and slave machines are synchronize to the same time reference, PSP calibration can be performed using the following
 commands:
 
-* on the slave: `psps -c -u stats.txt -n <numer of samples for calibration> -d <length of drift evaluation window> -t lat.txt -v 3`
+* on the slave: `psps -c -w 7200 -d`
 
-* on the master: `pspm -a <slave IP address> -d <timestamp transmission period in ms> -s <stagger in ms> -v 3`
+* on the master: `pspm -a <slave IP address> -d 250 -s 100 -v 3`
 
-The number of samples for calibration should be as high as possible. A good starting value ranges between 5000 and 10000.
-The length of the drift evaluation window should range between 50 and 200.
-The timestamp transmission period can be set to 1000 (1 second) but, if the channel allows it, a value of 100 (100 milliseconds)
-would significantly speed up the calibration/synchronization processes.
+With such parameters:
 
-Note: both master and slave can be stopped at any time pressing Ctrl-C. If slave is stopped in this way, it saves the channel
-latency statistics measured up to that point.
+* the synchronization master sends 4 timestamp per second on average.
 
-At the end of calibration is important to verify the value `cumul_drift` reported in the `stats.txt` file. If this number is
-not an order of magnitude lower that the desired synchronization error, then it is necessary to re-run the calibration by
-specifying also the option `-i <drift_ppb value reported in file stats.txt>`.
+* the synchronization slave estimates the IP channel median latecy over an observation windows of 30 minutes
 
-Once calibration has been performed, it may be interesting to have a look at the file "lat.txt" that contains the series of measured
-latency samples. This can be done, for example, with gnuplot using the following command: `gnuplot -e "plot 'lat.txt'" -p`.
+* the synchronization slave produces two debug files: 'calibr\_timestamp.txt' and calibr\_time\_delta\_cdf.txt'. The former
+  reports, for each received timestamp packet, the timestamps count, the slave clock time, the timestamp time and the difference
+  between the two. The latter file reports the estimated Cumulative Distribution Function (CDF) of the IP channel latency.
 
 ### Synchronization
 
-Once calibration is complete, slave can be synchronized to slave machine using the following commands:
+In this step, the master and slave shall not be synchronized through other means/protocols.
 
-* on the slave: `psps -s -u stats.txt -w <number of observation window samples> -a <algorithm>`
+Slave can be synchronized to slave machine using the following commands:
 
-* on the master: `pspm -a <slave IP address> -d <timestamp transmission period in ms> -s <stagger in ms> -v 3`
+* on the slave: `psps -s -w 240 -q 3 -d`
 
-It is important to use for the master the same timestamp transmission period and stagger utilized during calibration.
+* on the master: `pspm -a <slave IP address> -d 250 -s 100 -v 3`
 
-The number of observation window sample must be selected based on the stability of the IP channel. A good starting value
-ranges between 100 and 1000. This number, together with the master timestamp transmission period, determines how often
-the slave clock is adjusted, i.e. `<slave clock adjustment period> = <timestamp transmission period> * <number of observation
-window samples>`. For example, if the timestamp transmission period is 100 ms and the observation window size is 600, the
-slave clock is adjuster roughly once per minute.
+With such parameters:
 
-The flag `-a` is used to select the algorithm. At the moment the most promising algorithm seems the one based on **median**
-latency statistics, that can be selected with parameter `-a 3`.
+* the synchronization master sends 4 timestamp per second on average.
 
-When slave clock is adjusted, psps prints the correction applied to the clock. For sufficiently long observation window,
-this correction has the same order of magnitude of the synchronization error, excluded the calibration error that cannot
-be estimated in any way by the slave process.
+* the synchronization slave adjusts/corrects its is clock based on measurements performed over increasing observation window size.
+  The first correction is performed after 1 minute, the second one after additional 2 minutes, the third one after additional 4 minutes,
+  the forth one after additional 8 minutes. The next corrections are then performed every 8 minutes.
 
+* the synchronization slave produces three debug files: synch\_timestamp.txt', 'synch\_time\_correction.txt' and 
+  'synch\_time\_cumul\_correction.txt'. The first one reports, for each received timestamp packet, the timestamps count, the slave clock 
+  time, the timestamp time and the difference between the two. The second file reports the adjustments/corrections performed on the
+  slave clock. The third file reports the cumulative of the adjustments/corrections performed on the slave clock.
+
+### Early termination
+
+Both synchronization master and slave can be stopped at any time pressing Ctrl-C. If the synchronization slave is stopped in this way
+during pre-calibration or calibration, it saves the estimations performed so far in the result files.

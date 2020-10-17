@@ -10,50 +10,59 @@
 #include "../common/timestamp.h"
 
 /* PSP Slave headers */
+#include "basic_stats.h"
+#include "least_squares.h"
 #include "options.h"
-#include "stats.h"
-#include "summ_stats.h"
+#include "perc_stats.h"
 
 /* slave state structure */
 struct slave_state
 {
-  /* action options */
-  int action;
-  int synch_algo;
-  int perc;
-  long drift_win;
-  long obs_win;
-  int simulate;
-  FILE *stats_file;
-
-  /* latency data */
-  struct stats lat_stats;
-  struct summ_stats lat_summ_stats;
-  long offset;
-  long sim_offset;
-
   /* slave socket and port */
   int socket_desc;
   in_port_t slave_port;
-
-  /* timestamp reception data */
-  long pkt_cnt;
-  ts_pkt_idx_t pkt_idx;
-  long drift;
-  size_t pkt_size;
-  uint8_t *pkt_buff;
-  struct timespec first_ts;
 
   /* secure protocol data */
   int secure;
   uint8_t key[32];
 
-  /* debugging files */
-  FILE *lat_file;
-  FILE *corr_file;
+  /* timestamp reception data */
+  long pkt_cnt;
+  ts_pkt_idx_t pkt_idx;
+  size_t pkt_size;
+  uint8_t *pkt_buff;
+  double clk_freq_ofs;
+
+  /* action */
+  int action;
+  int debug;
+  
+  /* statistics */
+  struct basic_stats bs;
+  struct perc_stats ps;
+  struct least_squares ls;
+  double median_time_off;
+
+  /* dynamic data */
+  double obs_win_start_time;
+  double first_clk_time;
+  double first_delta;
+  double time_step_thr;
+  long qs_rounds;
+  double time_cumul_corr;
+  long obs_win;
+
+  /* files */
+  FILE *out_file;
+  FILE *debug_timestamp_file;
+  FILE *debug_corr_time_delta_file;
+  FILE *debug_time_delta_cdf_file;
+  FILE *debug_freq_delta_file;
+  FILE *debug_time_corr_file;
+  FILE *debug_time_cumul_corr_file;
 };
 
-/* master data structure */
+/* slave data structure */
 struct slave_data
 {
   struct options opts;

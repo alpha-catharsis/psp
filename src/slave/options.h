@@ -10,14 +10,12 @@
 #include "../common/options.h"
 
 /* master action enumeration */
-enum action_type { action_calibr = 0,
-                   action_synch = 1};
-
-/* synchronization algorithm enumeration */
-enum sync_algo { algo_mean = 0,
-		 algo_p10 = 1,
-		 algo_p25 = 2,
-		 algo_median = 3};
+enum action_type
+{
+  action_precalibr = 0,
+  action_calibr = 1,
+  action_synch = 2
+};
 
 /* option structure */
 struct options
@@ -27,25 +25,21 @@ struct options
 
   /* action options */
   int action;
-  int synch_algo;
-  int no_perc;
-  long drift_win;
-  long obs_win;
-  int simulate;
-  long max_pkt_cnt;
-  const char *stats_filename;
+
+  /* general options */
   in_port_t slave_port;
+  long max_pkt_cnt;
+  long obs_win;
+
+  /* synchronization options */
+  long time_step_thr;
+  long qs_rounds;
 
   /* secure protocol options */
   const char *key_filename;
 
   /* debugging options */
-  const char *lat_filename;
-  const char *corr_filename;
-
-  /* tweaking options */
-  long offset;
-  long drift;
+  int debug;
 };
 
 /* options parsing functions */
