@@ -38,6 +38,10 @@ void init_synch(struct slave_state *state_ptr)
     if(!state_ptr->debug_timestamp_file){
       output(erro_lvl, "cannot open sychronization timestamp file");
     }
+    state_ptr->debug_corr_time_delta_file = fopen("synch_corr_time_delta.txt", "w");
+    if(!state_ptr->debug_corr_time_delta_file){
+      output(erro_lvl, "cannot open synchronization corrected time delta file");
+    }
     state_ptr->debug_time_corr_file = fopen("synch_time_correction.txt", "w");
     if(!state_ptr->debug_time_corr_file){
       output(erro_lvl, "cannot open sychronization time correction file");
@@ -60,15 +64,29 @@ void fini_synch(struct slave_state *state_ptr)
 void synch_handle_ts(struct slave_state *state_ptr, double clk_time, double time_delta)
 {
   (void) clk_time;
+  
+  double corrected_delta = time_delta;
+  struct timeval olddelta_tv;
+  if(adjtime(NULL, &olddelta_tv) == 0){
+    double old_time_corr = (double)olddelta_tv.tv_sec + ((double)olddelta_tv.tv_usec) * 1e-6;
+    corrected_delta += old_time_corr;
+  }else{
+    output(warn_lvl, "failure reading uncompensated time adjustment");
+  }
+  if(state_ptr->debug){
+    if(fprintf(state_ptr->debug_corr_time_delta_file, "%lu %.9f\n",
+	       basic_stats_count(&state_ptr->bs) - 1, corrected_delta) < 0){
+      output(erro_lvl, "cannot write corrected time delta sample to file");
+    }
+  }
 
-  add_perc_stats_sample(&state_ptr->ps, time_delta);
+  add_perc_stats_sample(&state_ptr->ps, corrected_delta);
   if(perc_stats_count(&state_ptr->ps) == state_ptr->obs_win){
     double median_delta = perc_stats_perc(&state_ptr->ps, 0.5);
     double time_corr = state_ptr->median_time_off - median_delta;
     int need_to_step = fabs(time_corr) >= state_ptr->time_step_thr;
 
     if(!need_to_step){
-      struct timeval olddelta_tv;
       struct timeval delta_tv;
       delta_tv.tv_sec  = (time_t) floor(time_corr);
       delta_tv.tv_usec = (long) ((time_corr - floor(time_corr)) * 1e6);

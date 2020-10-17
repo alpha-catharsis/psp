@@ -73,7 +73,7 @@ void calibr_handle_ts(struct slave_state *state_ptr, double clk_time, double tim
     (clk_time - state_ptr->first_clk_time);
   if(state_ptr->debug){
     if(fprintf(state_ptr->debug_corr_time_delta_file, "%lu %.9f\n",
-	       basic_stats_count(&state_ptr->bs), corrected_delta) < 0){
+	       basic_stats_count(&state_ptr->bs) - 1, corrected_delta) < 0){
       output(erro_lvl, "cannot write corrected time delta sample to file");
     }
   }
