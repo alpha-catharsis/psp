@@ -26,7 +26,7 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
   const int action_precalibr_val = action_precalibr;
   const int action_calibr_val = action_calibr;
   const int action_synch_val = action_synch;
-  const struct num_bounds win_bounds = {1, 1000000};
+  const struct num_bounds win_bounds = {1, 10000000000L};
   const struct num_bounds pkt_cnt_bounds = {1, LONG_MAX};
   const struct num_bounds time_step_thr_bounds = {1, 3600000000L};
   const struct num_bounds qs_rounds_bounds = {1, 10};

@@ -55,6 +55,7 @@ struct slave_state
   /* files */
   FILE *out_file;
   FILE *debug_timestamp_file;
+  FILE *debug_corr_time_delta_file;
   FILE *debug_time_delta_cdf_file;
   FILE *debug_freq_delta_file;
   FILE *debug_time_corr_file;

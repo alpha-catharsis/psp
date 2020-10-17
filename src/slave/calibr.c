@@ -36,6 +36,10 @@ void init_calibr(struct slave_state *state_ptr)
     if(!state_ptr->debug_timestamp_file){
       output(erro_lvl, "cannot open calibration timestamp file");
     }
+    state_ptr->debug_corr_time_delta_file = fopen("calibr_corr_time_delta.txt", "w");
+    if(!state_ptr->debug_corr_time_delta_file){
+      output(erro_lvl, "cannot open calibration corrected time delta file");
+    }
     state_ptr->debug_time_delta_cdf_file = fopen("calibr_time_delta_cdf.txt", "w");
     if(!state_ptr->debug_time_delta_cdf_file){
       output(erro_lvl, "cannot open calibration time delta CDF file");
@@ -67,6 +71,12 @@ void calibr_handle_ts(struct slave_state *state_ptr, double clk_time, double tim
   }
   double corrected_delta = time_delta + state_ptr->clk_freq_ofs *
     (clk_time - state_ptr->first_clk_time);
+  if(state_ptr->debug){
+    if(fprintf(state_ptr->debug_corr_time_delta_file, "%lu %.9f\n",
+	       basic_stats_count(&state_ptr->bs), corrected_delta) < 0){
+      output(erro_lvl, "cannot write corrected time delta sample to file");
+    }
+  }
   add_perc_stats_sample(&state_ptr->ps, corrected_delta);
   output(info_lvl, "median time delta: %.9f", perc_stats_perc(&state_ptr->ps, 0.5));
   if(perc_stats_count(&state_ptr->ps) == perc_stats_max_samples(&state_ptr->ps)){

@@ -38,6 +38,7 @@ void init_state_from_options(struct slave_state *state_ptr, const struct options
   state_ptr->obs_win = opt_ptr->obs_win;
   state_ptr->out_file = NULL;
   state_ptr->debug_timestamp_file = NULL;
+  state_ptr->debug_corr_time_delta_file = NULL;
   state_ptr->debug_time_delta_cdf_file = NULL;
   state_ptr->debug_freq_delta_file = NULL;
   state_ptr->debug_time_corr_file = NULL;
@@ -130,6 +131,9 @@ void fini_state(void *ptr)
   }
   if(state_ptr->debug_timestamp_file){
     fclose(state_ptr->debug_timestamp_file);
+  }
+  if(state_ptr->debug_corr_time_delta_file){
+    fclose(state_ptr->debug_corr_time_delta_file);
   }
   if(state_ptr->debug_time_delta_cdf_file){
     fclose(state_ptr->debug_time_delta_cdf_file);
