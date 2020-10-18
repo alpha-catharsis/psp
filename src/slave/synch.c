@@ -1,4 +1,5 @@
 /* C standard library headers */
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,8 +7,8 @@
 #include <time.h>
 
 /* Linux headers */
-/* #define __USE_MISC */
 #include <sys/time.h>
+#include <sys/timex.h>
 
 /* PSP Common headers */
 #include "../common/mgmt.h"
@@ -52,6 +53,15 @@ void init_synch(struct slave_state *state_ptr)
     }
   }
 
+  struct timex tx;
+  tx.modes = ADJ_STATUS;
+  tx.status = STA_PLL | STA_NANO;
+  if(adjtimex(&tx) == -1){
+    output(erro_lvl, "failure setting phase-locked loop disciple: %s", strerror(errno));
+  }else{
+    output(info_lvl, "enabled phase-locked loop disciple");
+  }
+
   output(info_lvl, "setting observation window to %ld samples", state_ptr->obs_win);
 }
 
@@ -66,13 +76,17 @@ void synch_handle_ts(struct slave_state *state_ptr, double clk_time, double time
   (void) clk_time;
   
   double corrected_delta = time_delta;
-  struct timeval olddelta_tv;
-  if(adjtime(NULL, &olddelta_tv) == 0){
-    double old_time_corr = (double)olddelta_tv.tv_sec + ((double)olddelta_tv.tv_usec) * 1e-6;
-    corrected_delta += old_time_corr;
+  double uncorr_delta = 0.;
+
+  struct timex tx;
+  tx.modes = 0;
+  if(adjtimex(&tx) == -1){
+    output(erro_lvl, "failure reading system clock adjustments");
   }else{
-    output(warn_lvl, "failure reading uncompensated time adjustment");
+    uncorr_delta = (double)tx.offset / 1e9;
   }
+  corrected_delta += uncorr_delta;
+
   if(state_ptr->debug){
     if(fprintf(state_ptr->debug_corr_time_delta_file, "%lu %.9f\n",
 	       basic_stats_count(&state_ptr->bs) - 1, corrected_delta) < 0){
@@ -87,19 +101,15 @@ void synch_handle_ts(struct slave_state *state_ptr, double clk_time, double time
     int need_to_step = fabs(time_corr) >= state_ptr->time_step_thr;
 
     if(!need_to_step){
-      struct timeval delta_tv;
-      delta_tv.tv_sec  = (time_t) floor(time_corr);
-      delta_tv.tv_usec = (long) ((time_corr - floor(time_corr)) * 1e6);
-      if(adjtime(&delta_tv, &olddelta_tv) == 0){
-	output(info_lvl, "time adjustment: %.9f", time_corr);
-	double old_time_corr = (double)olddelta_tv.tv_sec + ((double)olddelta_tv.tv_usec) * 1e-6;
-	if(fabs(old_time_corr) > 0.){
-	  output(info_lvl, "previous uncompensated time adjustmet: %.9f", old_time_corr);
-	}
-	time_corr -= old_time_corr;
+      tx.modes = ADJ_OFFSET | ADJ_STATUS | ADJ_TIMECONST | ADJ_NANO;
+      tx.offset = (long)(time_corr * 1e9 + uncorr_delta);
+      tx.status = STA_PLL | STA_NANO;
+      tx.constant = 1;
+      if(adjtimex(&tx) == -1){
+        output(warn_lvl, "failure adjusting system clock");
+        need_to_step = 1;
       }else{
-	output(warn_lvl, "failure adjusting realtime clock");
-	need_to_step = 1;
+        output(info_lvl, "time adjustment: %.9f", time_corr);
       }
     }
 
