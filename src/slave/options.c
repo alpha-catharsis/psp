@@ -18,6 +18,8 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
   opts_ptr->slave_port = htons(4242);
   opts_ptr->max_pkt_cnt = -1;
   opts_ptr->obs_win = 120;
+  opts_ptr->synch_method = synch_freq;
+  opts_ptr->freq_estim_slots = 10;
   opts_ptr->time_step_thr = 10000;
   opts_ptr->qs_rounds = 0;
   opts_ptr->key_filename = NULL;
@@ -28,6 +30,8 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
   const int action_synch_val = action_synch;
   const struct num_bounds win_bounds = {1, 10000000000L};
   const struct num_bounds pkt_cnt_bounds = {1, LONG_MAX};
+  const struct num_bounds synch_method_bounds = {0, 2};
+  const struct num_bounds freq_estim_slots_bounds = {2,1000};
   const struct num_bounds time_step_thr_bounds = {1, 3600000000L};
   const struct num_bounds qs_rounds_bounds = {1, 10};
 
@@ -47,6 +51,10 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
      BND_LONG_OPT('w', "<integer>, specifies the observation window in samples", &opts_ptr->obs_win, &win_bounds, "", ""),
 
      /* synchronization options */
+     BND_INT_OPT('m', "<integer>, specified the synchronization method (0=STEP, 1=SMOOTH, 2=FREQ)",
+                 &opts_ptr->synch_method, &synch_method_bounds, "s", ""),
+     BND_LONG_OPT('f', "<integer>, set the number of slots used for frequency estimation",
+                  &opts_ptr->freq_estim_slots, &freq_estim_slots_bounds, "s", ""),
      BND_LONG_OPT('t', "<integer>, set the time correction step threshold in us",
 		  &opts_ptr->time_step_thr, &time_step_thr_bounds, "s", ""),
      BND_LONG_OPT('q', "<integer>, enables quickstart and specifies the quickstart rounds",
@@ -63,12 +71,12 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
     };
 
   struct opt_group optg[] = {GEN_OPTS_GROUP,
-			     OPTS_GROUP("action options", "acs"),
-			     OPTS_GROUP("common options", "pnw"),
-			     OPTS_GROUP("synchronization options", "tq"),
-			     OPTS_GROUP("secure protocol options", "k"),
-			     OPTS_GROUP("debugging options", "d"),
-			     END_OPTS_GROUP};
+                             OPTS_GROUP("action options", "acs"),
+                             OPTS_GROUP("common options", "pnw"),
+                             OPTS_GROUP("synchronization options", "mftq"),
+                             OPTS_GROUP("secure protocol options", "k"),
+                             OPTS_GROUP("debugging options", "d"),
+                             END_OPTS_GROUP};
 
   if(parse_opts(optreg, argc, argv) &&
      !is_opt_set(optreg, 'h') &&
@@ -77,8 +85,8 @@ int parse_command_line(int argc, char **argv, struct options *opts_ptr)
     return 1;
   }else{
     print_help_msg("Packet Synchronization Protocol (PSP) Slave",
-		   "usage: pspm [action] [options]\n",
-		   optreg, optg);
+                   "usage: pspm [action] [options]\n",
+                   optreg, optg);
     return 0;
   }
 }
@@ -104,15 +112,24 @@ void print_selected_options(const struct options *opts_ptr)
     output(info_lvl, "  action                 = calibrate");
   }else{
     output(info_lvl, "  action                 = synchronize");
-    output(info_lvl, "  time step threshold    = %ld", opts_ptr->time_step_thr);
+    if(opts_ptr->synch_method == synch_step){
+      output(info_lvl, "  synchronization method = step");
+    }else if(opts_ptr->synch_method == synch_smooth){
+      output(info_lvl, "  synchronization method = smooth");
+      output(info_lvl, "  time step threshold    = %ld", opts_ptr->time_step_thr);
+    }else{
+      output(info_lvl, "  synchronization method = frequency");
+      output(info_lvl, "  time step threshold    = %ld", opts_ptr->time_step_thr);
+      output(info_lvl, "  frequency estim. slots = %ld", opts_ptr->freq_estim_slots);
+    }
     if(opts_ptr->qs_rounds){
       if(opts_ptr->qs_rounds == 1){
-	output(info_lvl, "  quickstart             = 1 round");
+        output(info_lvl, "  quickstart             = 1 round");
       }else{
-	output(info_lvl, "  quickstart             = %ld rounds", opts_ptr->qs_rounds);
+        output(info_lvl, "  quickstart             = %ld rounds", opts_ptr->qs_rounds);
       }
     }else{
-	output(info_lvl, "  quickstart             = disabled");
+      output(info_lvl, "  quickstart             = disabled");
     }
   }
   output(info_lvl, "  slave UDP port         = %hu", ntohs(opts_ptr->slave_port));

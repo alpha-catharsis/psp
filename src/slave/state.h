@@ -47,9 +47,12 @@ struct slave_state
   double obs_win_start_time;
   double first_clk_time;
   double first_delta;
+  int synch_method;
+  long freq_estim_slots;
   double time_step_thr;
   long qs_rounds;
   double time_cumul_corr;
+  double freq_cumul_corr;
   long obs_win;
 
   /* files */
@@ -60,6 +63,8 @@ struct slave_state
   FILE *debug_freq_delta_file;
   FILE *debug_time_corr_file;
   FILE *debug_time_cumul_corr_file;
+  FILE *debug_freq_corr_file;
+  FILE *debug_freq_cumul_corr_file;
 };
 
 /* slave data structure */

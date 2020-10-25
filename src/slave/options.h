@@ -17,6 +17,14 @@ enum action_type
   action_synch = 2
 };
 
+/* synchronization method values enumeration */
+enum synch_method_value
+{
+  synch_step = 0,
+  synch_smooth = 1,
+  synch_freq = 2
+};
+
 /* option structure */
 struct options
 {
@@ -32,6 +40,8 @@ struct options
   long obs_win;
 
   /* synchronization options */
+  int synch_method;
+  long freq_estim_slots;
   long time_step_thr;
   long qs_rounds;
 

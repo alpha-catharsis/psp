@@ -32,9 +32,12 @@ void init_state_from_options(struct slave_state *state_ptr, const struct options
   state_ptr->debug = opt_ptr->debug;
   state_ptr->obs_win_start_time = -1.;
   state_ptr->first_clk_time = -1.;
+  state_ptr->synch_method = opt_ptr->synch_method;
+  state_ptr->freq_estim_slots = opt_ptr->freq_estim_slots;
   state_ptr->time_step_thr = (double)opt_ptr->time_step_thr / 1e6;
   state_ptr->qs_rounds = opt_ptr->qs_rounds;
   state_ptr->time_cumul_corr = 0.;
+  state_ptr->freq_cumul_corr = 0.;
   state_ptr->obs_win = opt_ptr->obs_win;
   state_ptr->out_file = NULL;
   state_ptr->debug_timestamp_file = NULL;
@@ -43,6 +46,8 @@ void init_state_from_options(struct slave_state *state_ptr, const struct options
   state_ptr->debug_freq_delta_file = NULL;
   state_ptr->debug_time_corr_file = NULL;
   state_ptr->debug_time_cumul_corr_file = NULL;
+  state_ptr->debug_freq_corr_file = NULL;
+  state_ptr->debug_freq_cumul_corr_file = NULL;
 
   /* socket initialization */
   struct sockaddr_in host_addr;
@@ -146,6 +151,12 @@ void fini_state(void *ptr)
   }
   if(state_ptr->debug_time_cumul_corr_file){
     fclose(state_ptr->debug_time_cumul_corr_file);
+  }
+  if(state_ptr->debug_freq_corr_file){
+    fclose(state_ptr->debug_freq_corr_file);
+  }
+  if(state_ptr->debug_freq_cumul_corr_file){
+    fclose(state_ptr->debug_freq_cumul_corr_file);
   }
 
   fini_perc_stats(&state_ptr->ps);
