@@ -15,17 +15,14 @@ implements the slave role of the Packet Synchronization Protocol.
 \fB General options\fR
 .RS
 
-.TP
 .BR \-h
 Displays the help message.
 
-.TP
 .BR \-l
 Sets the log file. If this option is set all program output will be
 recorded in the log file independently from the verbosity level specified
 with the '\-v' option.
 
-.TP
 .BR \-v \fInum\fR
 Sets the program output verbosity level as follow:
 .RS
@@ -74,10 +71,37 @@ out channel latency variance. During calibration and synchronization, the observ
 \fB Options valid for synchronization only\fR
 .RS
 
+.BR \-m \fInum\fR
+Sets the synchronization metod to be used. The value can be:
+.RS
+.IP \fB0\fP
+stepwise time correction
+.IP \fB1\fP
+smooth time correction (monotonic)
+.IP \fB2\fP
+smooth time correction (monotonic) and frequency correction
+.IP
+.RE
+
+.BR \-f \fInum\fR
+Sets the number of observation windows used to estimate frequency offset (default value: 10)
+
 .BR \-t \fInum\fR
 Specifies the threshold, in microseconds, for performing a step correction (default value: 10000). If the estimated error is below this
 threshold, the system clock is adjusted acting on its frequency, maintaining a monotonic behavior. If the estimated error is above this
 threshold then the system clock error is corrected suddently (this might make the system clock go back in time).
+
+.BR \-T \fInum\fR
+Sets the time correction dampening factor in percent (default value: 0)
+
+.BR \-F \fInum\fR
+Sets the frequency correction dampening factor in percent (default value: 50)
+
+.BR \-C \fInum\fR
+Sets the time correction clamping in ns (default value: MAX_LONG)
+
+.BR \-D \fInum\fR
+Sets the frequency correction clamping in ns (default value: MAX_LONG)
 
 .BR \-q \fInum\fR
 Specifies the number of quickstart rounds (default value: quickstart disabled). For each round the size of the observatio window is doubled.

@@ -1,6 +1,6 @@
 # Initial tasks
 AC_PREREQ([2.69])
-AC_INIT([psp], [2.0.0], [alpha.catharsis@gmail.com])
+AC_INIT([psp], [2.1.0], [alpha.catharsis@gmail.com])
 AC_CONFIG_SRCDIR([src/master/main.c])
 AC_CONFIG_HEADERS([src/config.h])
 AC_GNU_SOURCE
