@@ -35,6 +35,10 @@ void init_state_from_options(struct slave_state *state_ptr, const struct options
   state_ptr->synch_method = opt_ptr->synch_method;
   state_ptr->freq_estim_slots = opt_ptr->freq_estim_slots;
   state_ptr->time_step_thr = (double)opt_ptr->time_step_thr / 1e6;
+  state_ptr->time_corr_gain = 1. - (double)opt_ptr->time_corr_damp / 100.;
+  state_ptr->freq_corr_gain = 1. - (double)opt_ptr->freq_corr_damp / 100.;
+  state_ptr->time_corr_max = (double)opt_ptr->time_corr_clamp * 1e-9;
+  state_ptr->freq_corr_max = (double)opt_ptr->freq_corr_clamp * 1e-9;
   state_ptr->qs_rounds = opt_ptr->qs_rounds;
   state_ptr->time_cumul_corr = 0.;
   state_ptr->freq_cumul_corr = 0.;
@@ -44,8 +48,10 @@ void init_state_from_options(struct slave_state *state_ptr, const struct options
   state_ptr->debug_corr_time_delta_file = NULL;
   state_ptr->debug_time_delta_cdf_file = NULL;
   state_ptr->debug_freq_delta_file = NULL;
+  state_ptr->debug_time_error_file = NULL;
   state_ptr->debug_time_corr_file = NULL;
   state_ptr->debug_time_cumul_corr_file = NULL;
+  state_ptr->debug_freq_error_file = NULL;
   state_ptr->debug_freq_corr_file = NULL;
   state_ptr->debug_freq_cumul_corr_file = NULL;
 
@@ -146,11 +152,17 @@ void fini_state(void *ptr)
   if(state_ptr->debug_freq_delta_file){
     fclose(state_ptr->debug_freq_delta_file);
   }
+  if(state_ptr->debug_time_error_file){
+    fclose(state_ptr->debug_time_error_file);
+  }
   if(state_ptr->debug_time_corr_file){
     fclose(state_ptr->debug_time_corr_file);
   }
   if(state_ptr->debug_time_cumul_corr_file){
     fclose(state_ptr->debug_time_cumul_corr_file);
+  }
+  if(state_ptr->debug_freq_error_file){
+    fclose(state_ptr->debug_freq_error_file);
   }
   if(state_ptr->debug_freq_corr_file){
     fclose(state_ptr->debug_freq_corr_file);

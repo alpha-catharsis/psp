@@ -43,6 +43,10 @@ struct options
   int synch_method;
   long freq_estim_slots;
   long time_step_thr;
+  long time_corr_damp;
+  long freq_corr_damp;
+  long time_corr_clamp;
+  long freq_corr_clamp;
   long qs_rounds;
 
   /* secure protocol options */
